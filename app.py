@@ -6,6 +6,7 @@ import joblib
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from sklearn.metrics import f1_score, roc_auc_score, matthews_corrcoef
@@ -35,13 +36,23 @@ MODEL_PATHS = {
 }
 
 # ---------------------------
+# Load training feature order
+# ---------------------------
+feature_file = "model/feature_columns.json"
+if not os.path.exists(feature_file):
+    st.error("Feature columns file not found. Make sure feature_columns.json exists in 'model/'")
+    st.stop()
+
+with open(feature_file) as f:
+    feature_columns = json.load(f)
+
+# ---------------------------
 # File uploader
 # ---------------------------
 uploaded_file = st.file_uploader("Upload Test CSV File", type=["csv"])
 
 if uploaded_file is not None:
     try:
-        # Handle bank dataset separator (;)
         data = pd.read_csv(uploaded_file, sep=";")
     except:
         data = pd.read_csv(uploaded_file)
@@ -52,9 +63,21 @@ if uploaded_file is not None:
     if "y" not in data.columns:
         st.error("Target column 'y' not found in dataset.")
     else:
-        # Split features and target
+        # Split features & target
         X = data.drop("y", axis=1)
         y = data["y"]
+
+        # Reorder columns to match training
+        missing_cols = [c for c in feature_columns if c not in X.columns]
+        if missing_cols:
+            st.error(f"The following required columns are missing in uploaded data: {missing_cols}")
+            st.stop()
+
+        extra_cols = [c for c in X.columns if c not in feature_columns]
+        if extra_cols:
+            st.warning(f"The following extra columns will be ignored: {extra_cols}")
+
+        X = X[feature_columns]
 
         # ---------------------------
         # Model selection dropdown
