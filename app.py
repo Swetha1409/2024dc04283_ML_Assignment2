@@ -87,6 +87,8 @@ if uploaded_file is not None:
                 f1 = f1_score(y, y_pred)
                 auc = roc_auc_score(y, y_prob)
                 mcc = matthews_corrcoef(y, y_pred)
+                
+model_choice = st.selectbox("Choose Model", list(MODEL_PATHS.keys()))
 
                 # ---------------------------
                 # Display Metrics
