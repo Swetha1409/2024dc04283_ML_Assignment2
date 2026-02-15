@@ -23,8 +23,12 @@ if not os.path.exists("model"):
 # Load and preprocess data
 X_train, X_test, y_train, y_test = load_and_preprocess("bank.csv")
 
-
 results = []
+feature_columns = X_train.columns.tolist()
+
+import json
+with open("model/feature_columns.json", "w") as f:
+    json.dump(feature_columns, f)
 
 
 # 1️⃣ Logistic Regression
