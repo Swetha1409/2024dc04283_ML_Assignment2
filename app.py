@@ -1,138 +1,86 @@
 # app.py
-
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
-import os
 import matplotlib.pyplot as plt
 import seaborn as sns
-import json
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, matthews_corrcoef, confusion_matrix
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-from sklearn.metrics import f1_score, roc_auc_score, matthews_corrcoef
-from sklearn.metrics import confusion_matrix
+# Title
+st.title("Bank Term Deposit Prediction ML App")
 
-# ---------------------------
-# Page configuration
-# ---------------------------
-st.set_page_config(
-    page_title="ML Classification Comparison",
-    layout="wide"
+# Sidebar - File upload
+st.sidebar.header("Upload your CSV Test Data")
+uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+
+# Sidebar - Model selection
+model_choice = st.sidebar.selectbox(
+    "Select Model",
+    ("Logistic Regression",
+     "Decision Tree",
+     "KNN",
+     "Naive Bayes",
+     "Random Forest",
+     "XGBoost")
 )
 
-st.title("📊 Machine Learning Classification Comparison")
-st.write("Upload a CSV file and select a model to evaluate performance.")
+# Function to load model
+@st.cache_resource
+def load_model(model_name):
+    model_path = f"model/{model_name.lower().replace(' ', '_')}.pkl"
+    model = joblib.load(model_path)
+    return model
 
-# ---------------------------
-# Model paths
-# ---------------------------
-MODEL_PATHS = {
-    "Logistic Regression": "model/logistic.pkl",
-    "Decision Tree": "model/decision_tree.pkl",
-    "KNN": "model/knn.pkl",
-    "Naive Bayes": "model/naive_bayes.pkl",
-    "Random Forest": "model/random_forest.pkl",
-    "XGBoost": "model/xgboost.pkl"
-}
+# Function to evaluate predictions
+def evaluate(y_true, y_pred, y_prob):
+    accuracy = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    auc = roc_auc_score(y_true, y_prob)
+    mcc = matthews_corrcoef(y_true, y_pred)
+    return accuracy, precision, recall, f1, auc, mcc
 
-# ---------------------------
-# Load training feature order
-# ---------------------------
-feature_file = "model/feature_columns.json"
-if not os.path.exists(feature_file):
-    st.error("Feature columns file not found. Make sure feature_columns.json exists in 'model/'")
-    st.stop()
-
-with open(feature_file) as f:
-    feature_columns = json.load(f)
-
-# ---------------------------
-# File uploader
-# ---------------------------
-uploaded_file = st.file_uploader("Upload Test CSV File", type=["csv"])
-
+# Load model
 if uploaded_file is not None:
-    try:
-        data = pd.read_csv(uploaded_file, sep=";")
-    except:
-        data = pd.read_csv(uploaded_file)
-
-    st.subheader("📂 Uploaded Dataset Preview")
+    data = pd.read_csv(uploaded_file)
+    st.write("Preview of Uploaded Data:")
     st.dataframe(data.head())
 
-    if "y" not in data.columns:
-        st.error("Target column 'y' not found in dataset.")
+    if 'y' not in data.columns:
+        st.warning("CSV must contain 'y' column as target.")
     else:
-        # Split features & target
-        X = data.drop("y", axis=1)
-        y = data["y"]
+        X_test = data.drop("y", axis=1)
+        y_test = data["y"]
 
-        # Reorder columns to match training
-        missing_cols = [c for c in feature_columns if c not in X.columns]
-        if missing_cols:
-            st.error(f"The following required columns are missing in uploaded data: {missing_cols}")
-            st.stop()
+        model = load_model(model_choice)
+        y_pred = model.predict(X_test)
 
-        extra_cols = [c for c in X.columns if c not in feature_columns]
-        if extra_cols:
-            st.warning(f"The following extra columns will be ignored: {extra_cols}")
+        # Some models might not have predict_proba
+        try:
+            y_prob = model.predict_proba(X_test)[:, 1]
+        except:
+            y_prob = y_pred
 
-        X = X[feature_columns]
+        accuracy, precision, recall, f1, auc, mcc = evaluate(y_test, y_pred, y_prob)
 
-        # ---------------------------
-        # Model selection dropdown
-        # ---------------------------
-        st.subheader("Select Model for Evaluation")
-        model_choice = st.selectbox("Choose Model", list(MODEL_PATHS.keys()))
+        # Display metrics
+        st.subheader("Evaluation Metrics")
+        st.write(f"**Accuracy:** {accuracy:.4f}")
+        st.write(f"**Precision:** {precision:.4f}")
+        st.write(f"**Recall:** {recall:.4f}")
+        st.write(f"**F1 Score:** {f1:.4f}")
+        st.write(f"**AUC Score:** {auc:.4f}")
+        st.write(f"**MCC Score:** {mcc:.4f}")
 
-        if st.button("Evaluate Model"):
-            model_path = MODEL_PATHS[model_choice]
-
-            if not os.path.exists(model_path):
-                st.error(f"Model file not found: {model_path}")
-            else:
-                model = joblib.load(model_path)
-
-                # ---------------------------
-                # Predictions
-                # ---------------------------
-                y_pred = model.predict(X)
-                if hasattr(model, "predict_proba"):
-                    y_prob = model.predict_proba(X)[:, 1]
-                else:
-                    y_prob = y_pred
-
-                # ---------------------------
-                # Metrics
-                # ---------------------------
-                accuracy = accuracy_score(y, y_pred)
-                precision = precision_score(y, y_pred)
-                recall = recall_score(y, y_pred)
-                f1 = f1_score(y, y_pred)
-                auc = roc_auc_score(y, y_prob)
-                mcc = matthews_corrcoef(y, y_pred)
-
-                # ---------------------------
-                # Display metrics
-                # ---------------------------
-                st.subheader("📈 Evaluation Metrics")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Accuracy", f"{accuracy:.4f}")
-                col1.metric("Precision", f"{precision:.4f}")
-                col2.metric("Recall", f"{recall:.4f}")
-                col2.metric("F1 Score", f"{f1:.4f}")
-                col3.metric("AUC Score", f"{auc:.4f}")
-                col3.metric("MCC", f"{mcc:.4f}")
-
-                # ---------------------------
-                # Confusion matrix
-                # ---------------------------
-                st.subheader("🔎 Confusion Matrix")
-                cm = confusion_matrix(y, y_pred)
-                fig, ax = plt.subplots(figsize=(5, 4))
-                sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False)
-                plt.xlabel("Predicted")
-                plt.ylabel("Actual")
-                st.pyplot(fig)
+        # Confusion Matrix
+        cm = confusion_matrix(y_test, y_pred)
+        st.subheader("Confusion Matrix")
+        fig, ax = plt.subplots()
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+        st.pyplot(fig)
 else:
-    st.info("Please upload a CSV file to begin.")
+    st.info("Please upload a CSV file to proceed.")
