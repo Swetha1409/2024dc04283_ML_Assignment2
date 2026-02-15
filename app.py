@@ -88,22 +88,47 @@ if uploaded_file is not None:
                 auc = roc_auc_score(y, y_prob)
                 mcc = matthews_corrcoef(y, y_pred)
                 
-model_choice = st.selectbox("Choose Model", list(MODEL_PATHS.keys()))
-
                 # ---------------------------
                 # Display Metrics
                 # ---------------------------
-                st.subheader("📈 Evaluation Metrics")
-                col1, col2, col3 = st.columns(3)
+                if st.button("Evaluate Model"):
+    model_path = MODEL_PATHS[model_choice]
 
-                col1.metric("Accuracy", f"{accuracy:.4f}")
-                col1.metric("Precision", f"{precision:.4f}")
+        # ---------------------------
+        # Display Metrics
+        # ---------------------------
+       if st.button("Evaluate Model"):
+    model_path = MODEL_PATHS[model_choice]
 
-                col2.metric("Recall", f"{recall:.4f}")
-                col2.metric("F1 Score", f"{f1:.4f}")
+    if not os.path.exists(model_path):
+        st.error(f"Model file not found: {model_path}")
+    else:
+        model = joblib.load(model_path)
 
-                col3.metric("AUC Score", f"{auc:.4f}")
-                col3.metric("MCC", f"{mcc:.4f}")
+        # Predictions
+        y_pred = model.predict(X)
+
+        if hasattr(model, "predict_proba"):
+            y_prob = model.predict_proba(X)[:, 1]
+        else:
+            y_prob = y_pred
+
+        # ---------------------------
+        # Display Metrics
+        # ---------------------------
+        st.subheader("📈 Evaluation Metrics")
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Accuracy", f"{accuracy:.4f}")
+        col1.metric("Precision", f"{precision:.4f}")
+
+        col2.metric("Recall", f"{recall:.4f}")
+        col2.metric("F1 Score", f"{f1:.4f}")
+
+        col3.metric("AUC Score", f"{auc:.4f}")
+        col3.metric("MCC", f"{mcc:.4f}")
+
+
 
                 # ---------------------------
                 # Confusion Matrix
